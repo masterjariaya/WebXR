@@ -1,151 +1,84 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
-    <title>Cardboard Example</title>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-    <style>
-      body {
-        margin: 0px;
-        overflow: hidden;
-      }
-      #example {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-      }
-    </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- These tags are needed for enabling experimental Chrome APIs via Chrome's Origin-Trial program (Android, Windows): https://github.com/GoogleChrome/OriginTrials/blob/gh-pages/available-trials.md#current-experimental-features -->
+    <!-- Origin Trial Token, feature = Generic Sensors, origin = https://github.io, expires = 2018-04-10 -->
+    <meta http-equiv="origin-trial" data-feature="Generic Sensors" data-expires="2018-04-10" content="Aokv0ODVMUPIswIBi6DnpAIjhWefEd8gD8GpVgdYgETj0C5+/3kKMzZE/FOrBwHcpBO6LHuVRrIw3yOT8EMmJAYAAABQeyJvcmlnaW4iOiJodHRwczovL2dpdGh1Yi5pbzo0NDMiLCJmZWF0dXJlIjoiR2VuZXJpY1NlbnNvciIsImV4cGlyeSI6MTUyMzMxODQwMH0=">
+    <!-- Origin Trial Token, feature = WebVR (For Chrome M62+), origin = https://github.io, expires = 2018-05-07 -->
+    <meta http-equiv="origin-trial" data-feature="WebXR (For Chrome M62+)" data-expires="2018-05-07" content="AgINztgDnjFV8da2D9SSzIITBRlHX8mduCR7DXfENxjr9ALduKOxBDdn2n66auQSlljVyhnRWWerxC0BWbE8pAoAAABOeyJvcmlnaW4iOiJodHRwczovL2dpdGh1Yi5pbzo0NDMiLCJmZWF0dXJlIjoiV2ViVlIxLjFNNjIiLCJleHBpcnkiOjE1MjU3MjU4MDh9">
+    <title> | WebXR360Viewer</title>
+    <meta name="description" content="">
+    
+    <link rel="icon" href="favicon.ico">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" type="text/css" href="styles/webxr.css">
+
+    <script src="lib/telemetry.js"></script>
+    <script>
+      MozillaResearch.telemetry.start({
+        analytics: true,
+        errorLogging: true,
+        performance: true
+      });
+      MozillaResearch.telemetry.performance.mark('LoaderParsingStart');
+    </script>
+
+    <script src="Build/UnityLoader.js"></script>
+    <script>
+        UnityLoader.SystemInfo.mobile = false;  // Workaround to force `UnityLoader` to actually load on mobile.
+        window.gameInstance = UnityLoader.instantiate('gameContainer', 'Build/Builds.json', {
+          Module: {
+            // `preserveDrawingBuffer` is needed for WebVR content to be mirrored to the `<canvas>`.
+            webglContextAttributes: {
+              preserveDrawingBuffer: true
+            }
+          },
+          onProgress: unityProgress
+        });
+
+        function unityProgress (gameInstance, progress) {
+          if (!gameInstance.progress) {
+            gameInstance.loader = document.getElementById('loader');
+            gameInstance.progress = document.getElementById('progress');
+            gameInstance.loading = document.getElementById('loading');
+            document.dispatchEvent(new CustomEvent('UnityProgressStart'));
+          }
+          gameInstance.progress.style.width = (100 * progress) + '%';
+          if (progress === 1) {
+            document.dispatchEvent(new CustomEvent('UnityLoaded'));
+          }
+        }
+    </script>
   </head>
   <body>
-    <div id="example"></div>
+    <div id="loader">
+      <div id="loading" class="loading">Loading</div>
+      <div id="progress" class="progress"></div>
+    </div>
 
-  <script src="js/third-party/threejs/three.js"></script>
-  <script src="js/third-party/threejs/StereoEffect.js"></script>
-  <script src="js/third-party/threejs/DeviceOrientationControls.js"></script>
-  <script src="js/third-party/threejs/OrbitControls.js"></script>
+    <div id="game">
+      <div id="gameContainer"></div>
+    </div>
 
-  <script>
-    var camera, scene, renderer;
-    var effect, controls;
-    var element, container;
+    <div id="instruction">
+      <div id="novr" class="panel center">
+        <h3>You&rsquo;ll need a <a href="https://developer.mozilla.com/topics/mixed-reality/">WebXR-enabled browser</a> and VR headset to fully enjoy this experience.</h3>
+        <p><img src="mousedrag.png" width="70" alt="Click-and-drag your mouse"></p>
+        <p>In the meantime, <strong><em>click and drag</em></strong> to have a look around!</p>
+        <p>
+          <button class="confirm">Continue</button>
+        </p>
+      </div>
+    </div>
 
-    var clock = new THREE.Clock();
+    <button id="enterxr" value="Enter VR"></button>
 
-    init();
-    animate();
+    <div id="performance" data-enabled="false"></div>
 
-    function init() {
-      renderer = new THREE.WebGLRenderer();
-      element = renderer.domElement;
-      container = document.getElementById('example');
-      container.appendChild(element);
-
-      effect = new THREE.StereoEffect(renderer);
-
-      scene = new THREE.Scene();
-
-      camera = new THREE.PerspectiveCamera(90, 1, 0.001, 700);
-      camera.position.set(0, 10, 0);
-      scene.add(camera);
-
-      controls = new THREE.OrbitControls(camera, element);
-      controls.rotateUp(Math.PI / 4);
-      controls.target.set(
-        camera.position.x + 0.1,
-        camera.position.y,
-        camera.position.z
-      );
-      controls.noZoom = true;
-      controls.noPan = true;
-
-      function setOrientationControls(e) {
-        if (!e.alpha) {
-          return;
-        }
-
-        controls = new THREE.DeviceOrientationControls(camera, true);
-        controls.connect();
-        controls.update();
-
-        element.addEventListener('click', fullscreen, false);
-
-        window.removeEventListener('deviceorientation', setOrientationControls, true);
-      }
-      window.addEventListener('deviceorientation', setOrientationControls, true);
-
-
-      var light = new THREE.HemisphereLight(0x777777, 0x000000, 0.6);
-      scene.add(light);
-
-      var texture = THREE.ImageUtils.loadTexture(
-        'textures/patterns/checker.png'
-      );
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.RepeatWrapping;
-      texture.repeat = new THREE.Vector2(50, 50);
-      texture.anisotropy = renderer.getMaxAnisotropy();
-
-      var material = new THREE.MeshPhongMaterial({
-        color: 0xffffff,
-        specular: 0xffffff,
-        shininess: 20,
-        shading: THREE.FlatShading,
-        map: texture
-      });
-
-      var geometry = new THREE.PlaneGeometry(1000, 1000);
-
-      var mesh = new THREE.Mesh(geometry, material);
-      mesh.rotation.x = -Math.PI / 2;
-      scene.add(mesh);
-
-      window.addEventListener('resize', resize, false);
-      setTimeout(resize, 1);
-    }
-
-    function resize() {
-      var width = container.offsetWidth;
-      var height = container.offsetHeight;
-
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-
-      renderer.setSize(width, height);
-      effect.setSize(width, height);
-    }
-
-    function update(dt) {
-      resize();
-
-      camera.updateProjectionMatrix();
-
-      controls.update(dt);
-    }
-
-    function render(dt) {
-      effect.render(scene, camera);
-    }
-
-    function animate(t) {
-      requestAnimationFrame(animate);
-
-      update(clock.getDelta());
-      render(clock.getDelta());
-    }
-
-    function fullscreen() {
-      if (container.requestFullscreen) {
-        container.requestFullscreen();
-      } else if (container.msRequestFullscreen) {
-        container.msRequestFullscreen();
-      } else if (container.mozRequestFullScreen) {
-        container.mozRequestFullScreen();
-      } else if (container.webkitRequestFullscreen) {
-        container.webkitRequestFullscreen();
-      }
-    }
-  </script>
+    <script src="vendor/gl-matrix-min.js"></script>
+    <script src="webxr.js"></script>
   </body>
+
 </html>
